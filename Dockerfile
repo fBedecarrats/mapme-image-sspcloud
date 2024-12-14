@@ -33,20 +33,11 @@ RUN apt-get install -y --no-install-recommends \
 # Step 6: Remove and reinstall 'sf' and 'terra' R packages
 RUN Rscript -e "remove.packages(c('sf', 'terra'))" || true && \
     Rscript -e "
-        install_with_retry <- function(pkg) {
-            tryCatch(
-                {
-                    install.packages(pkg, type = 'source', repos = 'https://cran.r-project.org/')
-                },
-                error = function(e) {
-                    message(paste('Retrying installation of', pkg))
-                    Sys.sleep(10)
-                    install.packages(pkg, type = 'source', repos = 'https://cran.r-project.org/')
-                }
-            )
-        }
-        install_with_retry('sf')
-        install_with_retry('terra')
+        install.packages(
+            c('sf', 'terra'),
+            type = 'source',
+            repos = 'https://cran.r-project.org'
+        )
     "
 
 # Step 7: Install additional R packages for mapme.biodiversity and related dependencies
