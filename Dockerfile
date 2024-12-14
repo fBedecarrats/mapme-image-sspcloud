@@ -1,49 +1,67 @@
-# Start from the r-datascience base image
-FROM inseefrlab/onyxia-r-datascience
+# Base image
+ARG BASE_IMAGE=rocker/verse:4.4.1
+FROM $BASE_IMAGE
+
+LABEL maintainer="InseeFrLab <innovation@insee.fr>"
 
 # Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV WORK_DIR=/home/onyxia/work
-ENV S3_PATH=s3/fbedecarrats/diffusion
-ENV R_LIBS_USER=/home/onyxia/R/x86_64-pc-linux-gnu-library/4.1
+ARG R_VERSION="4.4.2"
+ARG JAVA_VERSION="17"
+ARG PROJ_VERSION=9.5.0
+ARG GEOS_VERSION=3.13.0
+ARG GDAL_VERSION=3.9.2
+ARG NCPUS=-1
 
-# Step 1: Update and upgrade the package list
-# Add fallback logic for error handling
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    apt-get update || (echo "APT update failed. Retrying..." && sleep 5 && apt-get update) && \
-    apt-get -y upgrade || echo "APT upgrade failed. Skipping."
+ENV R_VERSION=${R_VERSION} \
+    JAVA_VERSION=${JAVA_VERSION} \
+    JAVA_HOME="/usr/lib/jvm/java-${JAVA_VERSION}-openjdk-amd64" \
+    PATH="${JAVA_HOME}/bin:${PATH}"
 
-# Step 2: Install software-properties-common if not present
-RUN apt-get install -y --no-install-recommends software-properties-common
+# Copy and prepare installation scripts
+COPY scripts/install_sysdeps.sh /rocker_scripts/install_sysdeps.sh
+COPY scripts/install_rspatial.sh /rocker_scripts/install_rspatial.sh
 
-# Step 3: Add the Ubuntugis PPA and update package list
-RUN apt-get install -y software-properties-common && \
-    add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable && \
-    apt-get update || echo "Ubuntugis PPA addition failed. Skipping."
+RUN chmod +x /rocker_scripts/install_sysdeps.sh && \
+    chmod +x /rocker_scripts/install_rspatial.sh
 
-# Step 4: Remove any existing GDAL, GEOS, and PROJ libraries for a clean slate
-RUN apt-get remove -y gdal-bin libgdal-dev libgeos-dev libproj-dev || true && \
-    apt-get autoremove -y || true
+# Install system dependencies for geospatial libraries
+RUN bash /rocker_scripts/install_sysdeps.sh -proj $PROJ_VERSION -geos $GEOS_VERSION -gdal $GDAL_VERSION -ncpus $NCPUS
 
-# Step 5: Install the latest versions of GDAL, GEOS, and PROJ libraries from the Ubuntugis PPA
-RUN apt-get install -y --no-install-recommends \
-    gdal-bin \
-    libgdal-dev \
-    libgeos-dev \
-    libproj-dev \
-    libsqlite0-dev \
-    libudunits2-dev && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install R and additional libraries
+RUN git clone --branch R${R_VERSION} --depth 1 https://github.com/rocker-org/rocker-versioned2.git /tmp/rocker-versioned2 && \
+    cp -r /tmp/rocker-versioned2/scripts/ /rocker_scripts/ && \
+    chown -R ${USERNAME}:${GROUPNAME} /rocker_scripts/ && \
+    chmod -R 700 /rocker_scripts/ && \
+    /rocker_scripts/install_R_source.sh && \
+    /rocker_scripts/setup_R.sh && \
+    # Reinstall removed system libs and additional dependencies
+    /opt/install-system-libs.sh && \
+    /opt/install-system-libs-R.sh && \
+    install2.r --error \
+        arrow \
+        aws.s3 \
+        devtools \
+        DBI \
+        duckdb \
+        lintr \
+        paws \
+        quarto \
+        renv \
+        RPostgreSQL \
+        styler \
+        targets \
+        vaultr && \
+    Rscript /opt/install-duckdb-extensions.R && \
+    /opt/install-java.sh && \
+    /opt/install-quarto.sh && \
+    /rocker_scripts/install_shiny_server.sh && \
+    /rocker_scripts/install_tidyverse.sh && \
+    /rocker_scripts/install_geospatial.sh && \
+    bash /rocker_scripts/install_rspatial.sh -n $NCPUS && \
+    chown -R ${USERNAME}:${GROUPNAME} ${HOME} ${R_HOME} && \
+    rm -rf /var/lib/apt/lists/*
 
-# Step 6: Remove and reinstall 'sf' and 'terra' R packages
-RUN Rscript -e 'remove.packages(c("sf", "terra"))' || true && \
-    Rscript -e 'install.packages(c("sf", "terra"), type = "source", repos = "https://cran.r-project.org")'
+# Fix permissions and clean up
+USER 1000
 
-# Step 7: Install additional R packages for mapme.biodiversity and related dependencies
-RUN Rscript -e 'packages <- c("mapme_impact_training", "gt", "geodata", "babelquarto", "wdpar", \
-                              "mapme.biodiversity", "progressr", "DiagrammeR", "rstac", "tictoc", \
-                              "exactextractr", "cowplot", "stargazer", "MatchIt", "cobalt", "landscapemetrics"); \
-                 install.packages(packages, repos = "https://cran.r-project.org")'
-
-# Step 8: Install MinIO Client (mc) for S3 access
-RUN curl -O https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x mc && mv mc /usr/local/bin/
+CMD ["R"]
