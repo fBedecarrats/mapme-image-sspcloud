@@ -1,5 +1,5 @@
 # Start from the r-datascience base image
-FROM inseefrlab/images-datascience:r-datascience
+FROM inseefrlab/onyxia-r-datascience
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
