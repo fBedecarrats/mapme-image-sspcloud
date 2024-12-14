@@ -36,12 +36,11 @@ RUN Rscript -e 'remove.packages(c("sf", "terra"))' || true && \
     Rscript -e 'install.packages(c("sf", "terra"), type = "source", repos = "https://cran.r-project.org")'
 
 # Step 7: Install additional R packages for mapme.biodiversity and related dependencies
-RUN Rscript -e "
-    packages <- c('mapme_impact_training', 'gt', 'geodata', 'babelquarto', 'wdpar',
-                  'mapme.biodiversity', 'progressr', 'DiagrammeR', 'rstac', 'tictoc',
-                  'exactextractr', 'cowplot', 'stargazer', 'MatchIt', 'cobalt', 'landscapemetrics');
-    install.packages(packages, repos = 'https://cran.r-project.org');
-    "
+RUN Rscript -e 'packages <- c("mapme_impact_training", "gt", "geodata", "babelquarto", "wdpar", \
+                              "mapme.biodiversity", "progressr", "DiagrammeR", "rstac", "tictoc", \
+                              "exactextractr", "cowplot", "stargazer", "MatchIt", "cobalt", "landscapemetrics"); \
+                 install.packages(packages, repos = "https://cran.r-project.org")'
+
 
 # Step 8: Install MinIO Client (mc) for S3 access
 RUN curl -O https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x mc && mv mc /usr/local/bin/
