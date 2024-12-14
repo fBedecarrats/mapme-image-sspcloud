@@ -11,7 +11,7 @@ LABEL org.opencontainers.image.title="mapme-spatial" \
       org.opencontainers.image.authors="Darius Görgen <info@dariusgoergen.com>"
 
 # Set environment variables
-ARG R_VERSION="4.4.2"
+ARG R_VERSION="4.4.1"
 ENV R_VERSION=${R_VERSION}
 ENV R_HOME="/usr/local/lib/R"
 ENV JAVA_VERSION="17"
